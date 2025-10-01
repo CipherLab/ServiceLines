@@ -4,47 +4,67 @@ const API_KEY = 'AIzaSyCvvVY2ce4u6UK52_pnsHNjqpbPTyYYMdE'
 const SHEET_ID = '1KwDTLieOALN2bJJ-IXyr1BkGSo9ixPnclMoTYxCPX8g'
 const SHEET_NAME = 'SLs'
 
+// Parse CSV text into array of objects
+function parseCSV(text) {
+  const lines = text.trim().split('\n')
+  const headers = lines[0].split('\t').map(h => h.trim())
+
+  return lines.slice(1).map(line => {
+    const values = line.split('\t')
+    const obj = {}
+    headers.forEach((header, index) => {
+      obj[header] = values[index] || ''
+    })
+    return obj
+  })
+}
+
 export async function fetchServiceLines() {
   try {
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${SHEET_NAME}?key=${API_KEY}`
-    console.log('[GoogleSheets] Fetching data from:', url)
+    // Try loading from local CSV first
+    console.log('[ServiceLines] Loading from local CSV file')
+    const response = await fetch('/ServiceLines/ServiceLines.csv')
 
-    const response = await axios.get(url)
-    console.log('[GoogleSheets] Response status:', response.status)
-    console.log('[GoogleSheets] Response data:', response.data)
-
-    const rows = response.data.values
-    if (!rows || rows.length === 0) {
-      console.error('[GoogleSheets] No data found in sheet')
-      throw new Error('No data found in sheet')
+    if (!response.ok) {
+      throw new Error(`Failed to load CSV: ${response.statusText}`)
     }
 
-    console.log('[GoogleSheets] Total rows fetched:', rows.length)
+    const text = await response.text()
+    const data = parseCSV(text)
 
-    // Parse rows into objects
-    const headers = rows[0]
-    console.log('[GoogleSheets] Headers:', headers)
-
-    const data = rows.slice(1).map(row => {
-      const obj = {}
-      headers.forEach((header, index) => {
-        obj[header] = row[index] || ''
-      })
-      return obj
-    })
-
-    console.log('[GoogleSheets] Parsed data count:', data.length)
-    console.log('[GoogleSheets] Sample record:', data[0])
+    console.log('[ServiceLines] Loaded', data.length, 'records from CSV')
+    console.log('[ServiceLines] Sample record:', data[0])
 
     return data
   } catch (error) {
-    console.error('[GoogleSheets] Error details:', {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status,
-      statusText: error.response?.statusText
-    })
-    throw new Error(`Failed to load data: ${error.message}`)
+    console.error('[ServiceLines] Error loading CSV:', error)
+
+    // Fallback to Google Sheets
+    try {
+      console.log('[ServiceLines] Falling back to Google Sheets')
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${SHEET_NAME}?key=${API_KEY}`
+      const response = await axios.get(url)
+
+      const rows = response.data.values
+      if (!rows || rows.length === 0) {
+        throw new Error('No data found in sheet')
+      }
+
+      const headers = rows[0]
+      const data = rows.slice(1).map(row => {
+        const obj = {}
+        headers.forEach((header, index) => {
+          obj[header] = row[index] || ''
+        })
+        return obj
+      })
+
+      console.log('[ServiceLines] Loaded', data.length, 'records from Google Sheets')
+      return data
+    } catch (sheetsError) {
+      console.error('[ServiceLines] Google Sheets error:', sheetsError)
+      throw new Error(`Failed to load data: ${sheetsError.message}`)
+    }
   }
 }
 
@@ -57,6 +77,50 @@ export async function appendServiceLine(rowData) {
   // with proper OAuth 2.0 authentication
 
   return Promise.resolve()
+}
+
+export async function fetchDescriptions() {
+  try {
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/Descriptions?key=${API_KEY}`
+    console.log('[Descriptions] Fetching from Google Sheets')
+
+    const response = await axios.get(url)
+
+    const rows = response.data.values
+    if (!rows || rows.length === 0) {
+      console.log('[Descriptions] No data found in Descriptions sheet')
+      return []
+    }
+
+    const headers = rows[0]
+    const data = rows.slice(1).map(row => {
+      const obj = {}
+      headers.forEach((header, index) => {
+        obj[header] = row[index] || ''
+      })
+      return obj
+    })
+
+    // Transform to the expected format
+    const descriptions = data.map(row => ({
+      pathKey: row.pathKey || '',
+      author: row.author || '',
+      content: row.content || '',
+      timestamp: parseInt(row.timestamp) || Date.now(),
+      isFromSheet: true
+    }))
+
+    console.log('[Descriptions] Loaded', descriptions.length, 'descriptions from Google Sheets')
+    return descriptions
+  } catch (error) {
+    // If the sheet doesn't exist or there's an error, gracefully return empty array
+    if (error.response?.status === 400) {
+      console.log('[Descriptions] Descriptions sheet not found (this is OK)')
+    } else {
+      console.error('[Descriptions] Error fetching descriptions:', error)
+    }
+    return []
+  }
 }
 
 export function buildTree(data) {

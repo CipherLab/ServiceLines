@@ -10,25 +10,43 @@
       />
     </q-breadcrumbs>
 
+    <!-- Current selection info card -->
+    <q-card v-if="currentPath.length > 0" class="q-mb-md" flat bordered>
+      <DescriptionThread
+        :title="currentPath[currentPath.length - 1].name"
+        :leader="currentLeader"
+        :path-key="pathKey"
+      />
+    </q-card>
+
     <div class="button-grid">
       <q-btn
         v-for="option in currentOptions"
         :key="option"
-        :label="option"
-        color="primary"
-        size="lg"
         class="service-btn"
+        :class="currentLevel === 0 ? 'top-level-btn' : 'child-level-btn'"
+        :style="getButtonStyle(option)"
         @click="selectOption(option)"
-        unelevated
-      />
+        no-caps
+        stack
+      >
+        <q-icon
+          v-if="currentLevel === 0"
+          :name="getIcon(option)"
+          size="32px"
+          class="q-mb-sm"
+        />
+        <div class="btn-label">{{ option }}</div>
+      </q-btn>
       <q-btn
-        label="+ Add New"
-        color="positive"
-        size="lg"
-        class="service-btn"
+        class="service-btn add-btn"
         @click="showAddDialog = true"
-        unelevated
-      />
+        no-caps
+        stack
+      >
+        <q-icon name="add_circle_outline" size="32px" class="q-mb-sm" />
+        <div class="btn-label">Add New</div>
+      </q-btn>
     </div>
 
     <q-dialog v-model="showAddDialog">
@@ -65,8 +83,9 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useQuasar } from 'quasar'
+import DescriptionThread from './DescriptionThread.vue'
 
 const props = defineProps({
   data: {
@@ -75,7 +94,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['add-service-line'])
+const emit = defineEmits(['add-service-line', 'path-changed'])
 
 const $q = useQuasar()
 const currentPath = ref([])
@@ -83,6 +102,67 @@ const showAddDialog = ref(false)
 const newServiceLine = ref({
   name: '',
   description: ''
+})
+
+// Icon mapping for top level service lines
+const iconMap = {
+  'Business Applications': 'business',
+  'Cloud & Infrastructure': 'cloud',
+  'Data & Analytics': 'bar_chart',
+  'Security': 'security',
+  'Digital Experience': 'devices',
+  'AI & Automation': 'smart_toy',
+  'Integration': 'hub',
+  'default': 'folder'
+}
+
+// Color palette for top levels (light, modern colors)
+const colorPalette = [
+  { bg: '#E3F2FD', text: '#1565C0', hover: '#BBDEFB' }, // Blue
+  { bg: '#F3E5F5', text: '#6A1B9A', hover: '#E1BEE7' }, // Purple
+  { bg: '#E8F5E9', text: '#2E7D32', hover: '#C8E6C9' }, // Green
+  { bg: '#FFF3E0', text: '#E65100', hover: '#FFE0B2' }, // Orange
+  { bg: '#FCE4EC', text: '#C2185B', hover: '#F8BBD0' }, // Pink
+  { bg: '#E0F2F1', text: '#00695C', hover: '#B2DFDB' }, // Teal
+  { bg: '#F9FBE7', text: '#827717', hover: '#F0F4C3' }, // Lime
+  { bg: '#EFEBE9', text: '#4E342E', hover: '#D7CCC8' }, // Brown
+]
+
+// Compute path key for storage
+const pathKey = computed(() => {
+  return currentPath.value.map(p => p.name).join('__')
+})
+
+// Current level in the hierarchy
+const currentLevel = computed(() => {
+  return currentPath.value.length
+})
+
+// Get current leader
+const currentLeader = computed(() => {
+  if (currentPath.value.length === 0) return ''
+
+  const level = currentPath.value.length - 1
+  const leaderKey = level === 0 ? 'Service Line (L1) Leader' :
+                    level === 1 ? 'Capability (L2) Leader' :
+                    level === 2 ? 'Solution Set (L3) Leader' : 'Sub-function Leader'
+
+  let filtered = props.data
+
+  // Filter based on current path
+  for (let i = 0; i < currentPath.value.length; i++) {
+    const pathLevel = i === 0 ? 'Service Line (L1)' :
+                     i === 1 ? 'Capability (L2)' :
+                     i === 2 ? 'Solution Set (L3)' : 'Sub-function (L4)'
+    filtered = filtered.filter(row => row[pathLevel] === currentPath.value[i].name)
+  }
+
+  // Get the leader from the first matching row
+  if (filtered.length > 0) {
+    return filtered[0][leaderKey] || ''
+  }
+
+  return ''
 })
 
 const currentOptions = computed(() => {
@@ -111,11 +191,59 @@ const currentOptions = computed(() => {
   return values
 })
 
+function getIcon(name) {
+  return iconMap[name] || iconMap.default
+}
+
+function getColorForTopLevel(name) {
+  // Hash the name to get a consistent color
+  let hash = 0
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash)
+  }
+  const index = Math.abs(hash) % colorPalette.length
+  return colorPalette[index]
+}
+
+function getButtonStyle(option) {
+  if (currentLevel.value === 0) {
+    // Top level - assign color based on name
+    const color = getColorForTopLevel(option)
+    return {
+      background: color.bg,
+      color: color.text,
+      border: `2px solid ${color.text}20`
+    }
+  } else {
+    // Child levels - inherit color from top level with increasing opacity
+    const topLevelName = currentPath.value[0]?.name
+    if (topLevelName) {
+      const color = getColorForTopLevel(topLevelName)
+      const opacity = 1 - (currentLevel.value * 0.15) // Fade as we go deeper
+      return {
+        background: `${color.bg}${Math.floor(opacity * 255).toString(16).padStart(2, '0')}`,
+        color: color.text,
+        border: `2px solid ${color.text}20`
+      }
+    }
+  }
+  return {}
+}
+
 function selectOption(option) {
-  currentPath.value.push({
+  const pathItem = {
     name: option,
     level: currentPath.value.length
-  })
+  }
+
+  // Store color info if this is top level
+  if (currentPath.value.length === 0) {
+    pathItem.color = getColorForTopLevel(option)
+  } else if (currentPath.value[0].color) {
+    pathItem.color = currentPath.value[0].color
+  }
+
+  currentPath.value.push(pathItem)
 }
 
 function navigateToRoot() {
@@ -161,18 +289,59 @@ function addServiceLine() {
   showAddDialog.value = false
   newServiceLine.value = { name: '', description: '' }
 }
+
+// Watch for path changes and emit to parent
+watch(currentPath, (newPath) => {
+  emit('path-changed', newPath)
+}, { deep: true })
 </script>
 
 <style scoped>
 .button-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 20px;
 }
 
 .service-btn {
-  min-height: 80px;
-  font-size: 1rem;
+  min-height: 120px;
+  padding: 16px !important;
+  border-radius: 16px !important;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.service-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+}
+
+.top-level-btn {
+  min-height: 140px;
+}
+
+.child-level-btn {
+  min-height: 100px;
+}
+
+.btn-label {
+  font-size: 0.95rem;
   font-weight: 600;
+  line-height: 1.3;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  hyphens: auto;
+  text-align: center;
+  max-width: 100%;
+}
+
+.add-btn {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+  color: white !important;
+  border: none !important;
+}
+
+.add-btn:hover {
+  background: linear-gradient(135deg, #5568d3 0%, #65408b 100%) !important;
 }
 </style>
