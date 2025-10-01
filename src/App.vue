@@ -84,6 +84,7 @@
 
               <NavigateView
                 v-else
+                :key="navigateViewKey"
                 :data="serviceLineData"
                 @add-service-line="handleAddServiceLine"
                 @path-changed="handlePathChanged"
@@ -91,7 +92,10 @@
             </q-tab-panel>
 
             <q-tab-panel name="chat">
-              <ChatBot :tree-data="treeData" />
+              <ChatBot
+                :service-data="serviceLineData"
+                @navigate-to-path="handleChatBotNavigation"
+              />
             </q-tab-panel>
           </q-tab-panels>
         </q-card>
@@ -115,6 +119,7 @@ const error = ref(null)
 const serviceLineData = ref([])
 const treeDrawerOpen = ref(true)
 const currentPath = ref([])
+const navigateViewKey = ref(0)
 
 // Store NavigateView reference for programmatic navigation
 const navigateViewRef = ref(null)
@@ -201,6 +206,36 @@ function handleTreeNavigation(pathArray) {
     name: name,
     level: index
   }))
+}
+
+function handleChatBotNavigation(pathArray) {
+  // When ChatBot recommends a service line, navigate to it
+  console.log('[App] ChatBot navigation to:', pathArray)
+
+  // Build the path structure that NavigateView expects
+  const navigationPath = pathArray.map((name, index) => ({
+    name: name,
+    level: index
+  }))
+
+  // Update localStorage so NavigateView picks it up
+  localStorage.setItem('navigation_current_path', JSON.stringify(navigationPath))
+
+  // Update our internal state
+  currentPath.value = navigationPath
+
+  // Force NavigateView to remount and read from localStorage
+  navigateViewKey.value++
+
+  // Switch to Navigate tab
+  activeTab.value = 'navigate'
+
+  // Notify user
+  $q.notify({
+    type: 'info',
+    message: `Navigating to: ${pathArray.join(' > ')}`,
+    timeout: 2000
+  })
 }
 
 onMounted(() => {

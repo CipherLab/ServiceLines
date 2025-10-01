@@ -10,16 +10,17 @@
       />
     </q-breadcrumbs>
 
-    <!-- Current selection info card -->
-    <q-card v-if="currentPath.length > 0" class="q-mb-md" flat bordered>
-      <DescriptionThread
-        :title="currentPath[currentPath.length - 1].name"
-        :leader="currentLeader"
-        :path-key="pathKey"
-      />
-    </q-card>
 
-    <div class="button-grid">
+
+    <!-- Max depth message -->
+    <q-banner v-if="isAtMaxDepth" class="bg-grey-3 q-mb-md" rounded>
+      <template v-slot:avatar>
+        <q-icon name="info" color="primary" />
+      </template>
+      You've reached the deepest level (L4). No further sub-categories available.
+    </q-banner>
+
+    <div class="button-grid" v-if="!isAtMaxDepth || currentOptions.length > 0">
       <q-btn
         v-for="option in currentOptions"
         :key="option"
@@ -27,6 +28,7 @@
         :class="currentLevel === 0 ? 'top-level-btn' : 'child-level-btn'"
         :style="getButtonStyle(option)"
         @click="selectOption(option)"
+        :disable="isAtMaxDepth"
         no-caps
         stack
       >
@@ -39,6 +41,7 @@
         <div class="btn-label">{{ option }}</div>
       </q-btn>
       <q-btn
+        v-if="!isAtMaxDepth"
         class="service-btn add-btn"
         @click="showAddDialog = true"
         no-caps
@@ -48,7 +51,14 @@
         <div class="btn-label">Add New</div>
       </q-btn>
     </div>
-
+    <!-- Current selection info card -->
+    <q-card v-if="currentPath.length > 0" class="q-mb-md" flat bordered>
+      <DescriptionThread
+        :title="currentPath[currentPath.length - 1].name"
+        :leader="currentLeader"
+        :path-key="pathKey"
+      />
+    </q-card>
     <q-dialog v-model="showAddDialog">
       <q-card style="min-width: 400px">
         <q-card-section>
@@ -74,8 +84,15 @@
         </q-card-section>
 
         <q-card-actions align="right">
-          <q-btn flat label="Cancel" color="grey" v-close-popup />
-          <q-btn flat label="Add" color="primary" @click="addServiceLine" />
+          <q-btn flat label="Cancel" color="grey" v-close-popup :disable="isAddingServiceLine" />
+          <q-btn
+            flat
+            label="Add"
+            color="primary"
+            @click="addServiceLine"
+            :loading="isAddingServiceLine"
+            :disable="isAddingServiceLine"
+          />
         </q-card-actions>
       </q-card>
     </q-dialog>
@@ -114,6 +131,7 @@ function loadPersistedPath() {
 
 const currentPath = ref(loadPersistedPath())
 const showAddDialog = ref(false)
+const isAddingServiceLine = ref(false)
 const newServiceLine = ref({
   name: '',
   description: ''
@@ -151,6 +169,11 @@ const pathKey = computed(() => {
 // Current level in the hierarchy
 const currentLevel = computed(() => {
   return currentPath.value.length
+})
+
+// Check if we're at maximum depth (L4)
+const isAtMaxDepth = computed(() => {
+  return currentPath.value.length >= 4
 })
 
 // Get current leader
@@ -269,7 +292,7 @@ function navigateToLevel(index) {
   currentPath.value = currentPath.value.slice(0, index + 1)
 }
 
-function addServiceLine() {
+async function addServiceLine() {
   if (!newServiceLine.value.name.trim()) {
     $q.notify({
       type: 'negative',
@@ -278,31 +301,43 @@ function addServiceLine() {
     return
   }
 
-  const level = currentPath.value.length
-  const levelKey = level === 0 ? 'Service Line (L1)' :
-                  level === 1 ? 'Capability (L2)' :
-                  level === 2 ? 'Solution Set (L3)' : 'Sub-function (L4)'
-  const descKey = `L${level + 1} Description`
+  isAddingServiceLine.value = true
 
-  // Create new row
-  const newRow = {
-    'Service Line (L1)': level >= 0 ? (currentPath.value[0]?.name || newServiceLine.value.name) : '',
-    'Capability (L2)': level >= 1 ? (currentPath.value[1]?.name || (level === 1 ? newServiceLine.value.name : '—')) : '—',
-    'Solution Set (L3)': level >= 2 ? (currentPath.value[2]?.name || (level === 2 ? newServiceLine.value.name : '—')) : '—',
-    'Sub-function (L4)': level >= 3 ? (currentPath.value[3]?.name || (level === 3 ? newServiceLine.value.name : '—')) : '—',
+  try {
+    const level = currentPath.value.length
+    const levelKey = level === 0 ? 'Service Line (L1)' :
+                    level === 1 ? 'Capability (L2)' :
+                    level === 2 ? 'Solution Set (L3)' : 'Sub-function (L4)'
+    const descKey = `L${level + 1} Description`
+
+    // Create new row
+    const newRow = {
+      'Service Line (L1)': level >= 0 ? (currentPath.value[0]?.name || newServiceLine.value.name) : '',
+      'Capability (L2)': level >= 1 ? (currentPath.value[1]?.name || (level === 1 ? newServiceLine.value.name : '—')) : '—',
+      'Solution Set (L3)': level >= 2 ? (currentPath.value[2]?.name || (level === 2 ? newServiceLine.value.name : '—')) : '—',
+      'Sub-function (L4)': level >= 3 ? (currentPath.value[3]?.name || (level === 3 ? newServiceLine.value.name : '—')) : '—',
+    }
+    newRow[levelKey] = newServiceLine.value.name
+    newRow[descKey] = newServiceLine.value.description
+
+    emit('add-service-line', newRow)
+
+    $q.notify({
+      type: 'positive',
+      message: 'Service line added successfully'
+    })
+
+    showAddDialog.value = false
+    newServiceLine.value = { name: '', description: '' }
+  } catch (error) {
+    console.error('[NavigateView] Error adding service line:', error)
+    $q.notify({
+      type: 'negative',
+      message: 'Failed to add service line'
+    })
+  } finally {
+    isAddingServiceLine.value = false
   }
-  newRow[levelKey] = newServiceLine.value.name
-  newRow[descKey] = newServiceLine.value.description
-
-  emit('add-service-line', newRow)
-
-  $q.notify({
-    type: 'positive',
-    message: 'Service line added successfully'
-  })
-
-  showAddDialog.value = false
-  newServiceLine.value = { name: '', description: '' }
 }
 
 // Watch for path changes and emit to parent
@@ -339,9 +374,15 @@ onMounted(() => {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-.service-btn:hover {
+.service-btn:hover:not(:disabled) {
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+}
+
+.service-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  filter: grayscale(0.3);
 }
 
 .top-level-btn {

@@ -5,7 +5,7 @@ const SHEET_ID = '1KwDTLieOALN2bJJ-IXyr1BkGSo9ixPnclMoTYxCPX8g'
 const SHEET_NAME = 'SLs'
 
 // Apps Script Web App URL for writing to Google Sheets
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzyCXNS41ZPqsa9n12_mMlS4OvOPogOm-ZO58RGj3DY3RcvZLSlX2hbJaNZ3yiMk3MOkw/exec'
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyRgAvSyFI5mD1O8Ap6o7ZCd3XLb1-PjwlaFTbTxXAEn44JEoKcAdr1DAKnuVAcf-JUEA/exec'
 
 // Parse CSV text into array of objects
 function parseCSV(text) {
@@ -80,18 +80,25 @@ export async function appendServiceLine(rowData) {
   try {
     console.log('[AppendServiceLine] Posting to Apps Script:', rowData)
 
-    const response = await axios.post(APPS_SCRIPT_URL, {
-      action: 'addServiceLine',
-      row: rowData
+    // Use fetch with form data to avoid CORS preflight
+    const formData = new URLSearchParams()
+    formData.append('action', 'addServiceLine')
+    formData.append('data', JSON.stringify(rowData))
+
+    const response = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      body: formData,
+      redirect: 'follow'
     })
 
-    console.log('[AppendServiceLine] Response:', response.data)
+    const data = await response.json()
+    console.log('[AppendServiceLine] Response:', data)
 
-    if (!response.data.success) {
-      throw new Error(response.data.message || 'Failed to add service line')
+    if (!data.success) {
+      throw new Error(data.message || 'Failed to add service line')
     }
 
-    return response.data
+    return data
   } catch (error) {
     console.error('[AppendServiceLine] Error:', error)
     throw new Error(`Failed to save to Google Sheets: ${error.message}`)
@@ -151,21 +158,25 @@ export async function saveDescription(pathKey, author, content, timestamp) {
   try {
     console.log('[SaveDescription] Posting to Apps Script:', { pathKey, author, content, timestamp })
 
-    const response = await axios.post(APPS_SCRIPT_URL, {
-      action: 'addDescription',
-      pathKey,
-      author,
-      content,
-      timestamp
+    // Use fetch with form data to avoid CORS preflight
+    const formData = new URLSearchParams()
+    formData.append('action', 'addDescription')
+    formData.append('data', JSON.stringify({ pathKey, author, content, timestamp }))
+
+    const response = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      body: formData,
+      redirect: 'follow'
     })
 
-    console.log('[SaveDescription] Response:', response.data)
+    const data = await response.json()
+    console.log('[SaveDescription] Response:', data)
 
-    if (!response.data.success) {
-      throw new Error(response.data.message || 'Failed to add description')
+    if (!data.success) {
+      throw new Error(data.message || 'Failed to add description')
     }
 
-    return response.data
+    return data
   } catch (error) {
     console.error('[SaveDescription] Error:', error)
     throw new Error(`Failed to save description: ${error.message}`)

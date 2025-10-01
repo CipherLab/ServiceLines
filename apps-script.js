@@ -25,9 +25,10 @@ function doGet(e) {
 
 function doPost(e) {
   try {
-    // Parse the incoming request
-    const data = JSON.parse(e.postData.contents);
-    const action = data.action; // 'addServiceLine' or 'addDescription'
+    // Parse form data
+    const params = e.parameter;
+    const action = params.action;
+    const data = JSON.parse(params.data || '{}');
 
     // Get the active spreadsheet
     const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -45,7 +46,7 @@ function doPost(e) {
   }
 }
 
-function handleAddServiceLine(ss, data) {
+function handleAddServiceLine(ss, rowData) {
   try {
     const sheet = ss.getSheetByName('SLs');
     if (!sheet) {
@@ -56,10 +57,10 @@ function handleAddServiceLine(ss, data) {
     const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
 
     // Build row data matching the header order
-    const rowData = headers.map(header => data.row[header] || '');
+    const row = headers.map(header => rowData[header] || '');
 
     // Append the row
-    sheet.appendRow(rowData);
+    sheet.appendRow(row);
 
     return createCorsResponse({ success: true, message: 'Service line added successfully' });
   } catch (error) {

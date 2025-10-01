@@ -3,11 +3,70 @@
     <div class="thread-header">
       <div class="text-h6">{{ title }}</div>
       <div v-if="leader" class="text-subtitle2 text-grey-7">
-        Leader: {{ leader }}
+        Leader: <a :href="leaderEmail" class="leader-email">{{ leader }}</a>
       </div>
     </div>
 
     <q-separator class="q-my-md" />
+
+    <!-- AI-Generated Master Description -->
+    <q-card
+      v-if="sortedMessages.length > 0"
+      class="master-description-card q-mb-md"
+      flat
+      bordered
+    >
+      <q-card-section class="master-header">
+        <div class="master-title-row">
+          <div class="master-title-section">
+            <q-icon name="auto_awesome" size="sm" color="amber-9" class="q-mr-xs" />
+            <span class="text-subtitle1 text-weight-medium">AI-Generated Summary</span>
+            <q-badge
+              color="amber-6"
+              text-color="grey-9"
+              label="MASTER"
+              class="q-ml-sm"
+            />
+          </div>
+          <q-btn
+            flat
+            dense
+            round
+            icon="refresh"
+            color="amber-9"
+            size="sm"
+            @click="regenerateMasterDescription"
+            :loading="isGenerating"
+            :disable="isGenerating"
+          >
+            <q-tooltip>Regenerate summary from current descriptions</q-tooltip>
+          </q-btn>
+        </div>
+        <div class="master-meta text-caption text-grey-7 q-mt-xs">
+          <span v-if="masterDescription?.timestamp">
+            Last updated: {{ formatDate(masterDescription.timestamp) }}
+          </span>
+          <span class="q-mx-sm">•</span>
+          <span>Based on {{ sortedMessages.length }} team input{{ sortedMessages.length !== 1 ? 's' : '' }}</span>
+        </div>
+      </q-card-section>
+
+      <q-separator />
+
+      <q-card-section v-if="isGenerating" class="text-center">
+        <q-spinner-dots color="amber-9" size="md" />
+        <div class="text-caption text-grey-7 q-mt-sm">Analyzing descriptions and generating summary...</div>
+      </q-card-section>
+
+      <q-card-section v-else-if="masterDescription?.content" class="master-content">
+        <div v-html="masterDescription.content"></div>
+      </q-card-section>
+
+      <q-card-section v-else class="text-center text-grey-7">
+        <q-icon name="psychology" size="md" color="grey-5" class="q-mb-sm" />
+        <div class="text-caption">No summary generated yet. Click refresh to create one.</div>
+      </q-card-section>
+    </q-card>
 
     <!-- Chat-like messages -->
     <div class="messages-container" ref="messagesContainer">
@@ -71,7 +130,8 @@
         label="Add"
         color="primary"
         @click="postMessage"
-        :disable="!canPost"
+        :disable="!canPost || isPosting"
+        :loading="isPosting"
         unelevated
       />
     </div>
@@ -106,6 +166,9 @@ const newMessage = ref({
   content: ''
 })
 const isLoading = ref(false)
+const isPosting = ref(false)
+const masterDescription = ref(null)
+const isGenerating = ref(false)
 
 const sortedMessages = computed(() => {
   return [...messages.value].sort((a, b) => b.timestamp - a.timestamp)
@@ -113,6 +176,15 @@ const sortedMessages = computed(() => {
 
 const canPost = computed(() => {
   return newMessage.value.author.trim() && newMessage.value.content.trim()
+})
+
+const leaderEmail = computed(() => {
+  if (!props.leader) return ''
+
+  // Convert "First Last" to "first.last@rsmus.com"
+  const name = props.leader.trim().toLowerCase()
+  const emailName = name.replace(/\s+/g, '.')
+  return `mailto:${emailName}@rsmus.com`
 })
 
 function formatDate(timestamp) {
@@ -230,6 +302,9 @@ async function loadMessages() {
     newMessage.value.author = savedAuthor
   }
 
+  // Load master description
+  loadMasterDescription()
+
   isLoading.value = false
   console.log('=== LOAD MESSAGES END ===\n')
 }
@@ -257,6 +332,200 @@ function saveMessages() {
   console.log('=== SAVE MESSAGES END ===\n')
 }
 
+function loadMasterDescription() {
+  const storageKey = `master_description_${props.pathKey}`
+  const stored = localStorage.getItem(storageKey)
+
+  if (stored) {
+    try {
+      masterDescription.value = JSON.parse(stored)
+      console.log('[MASTER] Loaded master description:', masterDescription.value)
+    } catch (e) {
+      console.error('[MASTER] Failed to parse master description:', e)
+      masterDescription.value = null
+    }
+  } else {
+    masterDescription.value = null
+  }
+}
+
+function saveMasterDescription() {
+  const storageKey = `master_description_${props.pathKey}`
+  localStorage.setItem(storageKey, JSON.stringify(masterDescription.value))
+  console.log('[MASTER] Saved master description')
+}
+
+function extractKeywords(text) {
+  // Remove common words and extract meaningful keywords
+  const commonWords = new Set([
+    'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
+    'of', 'with', 'by', 'from', 'as', 'is', 'are', 'was', 'were', 'been',
+    'be', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could',
+    'should', 'may', 'might', 'can', 'this', 'that', 'these', 'those', 'it',
+    'they', 'we', 'you', 'he', 'she', 'i', 'me', 'my', 'our', 'their', 'its'
+  ])
+
+  const words = text.toLowerCase()
+    .replace(/[^\w\s]/g, ' ')
+    .split(/\s+/)
+    .filter(word => word.length > 3 && !commonWords.has(word))
+
+  // Count word frequency
+  const wordCount = {}
+  words.forEach(word => {
+    wordCount[word] = (wordCount[word] || 0) + 1
+  })
+
+  return wordCount
+}
+
+function findCommonThemes(messages) {
+  const allKeywords = {}
+
+  messages.forEach(msg => {
+    const keywords = extractKeywords(msg.content)
+    Object.entries(keywords).forEach(([word, count]) => {
+      allKeywords[word] = (allKeywords[word] || 0) + count
+    })
+  })
+
+  // Sort by frequency and return top keywords
+  return Object.entries(allKeywords)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 15)
+    .map(([word]) => word)
+}
+
+function extractBulletPoints(messages) {
+  const points = []
+  const seen = new Set()
+
+  messages.forEach(msg => {
+    const content = msg.content.trim()
+
+    // Split into sentences
+    const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 20)
+
+    sentences.forEach(sentence => {
+      const cleaned = sentence.trim()
+      const normalized = cleaned.toLowerCase()
+
+      // Avoid duplicates
+      if (!seen.has(normalized) && cleaned.length > 30) {
+        points.push({
+          text: cleaned,
+          author: msg.author,
+          priority: cleaned.length + (msg.isFromSheet ? 10 : 0) // Prioritize synced messages
+        })
+        seen.add(normalized)
+      }
+    })
+  })
+
+  // Sort by priority and return top points
+  return points.sort((a, b) => b.priority - a.priority).slice(0, 8)
+}
+
+function generateSummaryContent(messages) {
+  if (messages.length === 0) {
+    return '<p class="text-grey-7"><em>No descriptions available to summarize.</em></p>'
+  }
+
+  const themes = findCommonThemes(messages)
+  const bulletPoints = extractBulletPoints(messages)
+
+  let html = '<div class="summary-content">'
+
+  // Overview section
+  html += '<div class="summary-section">'
+  html += '<div class="summary-section-title">Overview</div>'
+  html += '<p>This summary synthesizes <strong>' + messages.length + ' team contribution' + (messages.length !== 1 ? 's' : '') + '</strong> '
+  html += 'to provide a comprehensive understanding of this service line.</p>'
+  html += '</div>'
+
+  // Key themes
+  if (themes.length > 0) {
+    html += '<div class="summary-section">'
+    html += '<div class="summary-section-title">Key Focus Areas</div>'
+    html += '<div class="theme-tags">'
+    themes.slice(0, 10).forEach(theme => {
+      html += '<span class="theme-tag">' + theme + '</span>'
+    })
+    html += '</div>'
+    html += '</div>'
+  }
+
+  // Key insights from team
+  if (bulletPoints.length > 0) {
+    html += '<div class="summary-section">'
+    html += '<div class="summary-section-title">Key Insights</div>'
+    html += '<ul class="insights-list">'
+    bulletPoints.forEach(point => {
+      html += '<li>' + point.text
+      if (point.text.slice(-1) !== '.') html += '.'
+      html += ' <span class="insight-author">— ' + point.author + '</span></li>'
+    })
+    html += '</ul>'
+    html += '</div>'
+  }
+
+  // Contributors
+  const contributors = [...new Set(messages.map(m => m.author))]
+  html += '<div class="summary-section">'
+  html += '<div class="summary-section-title">Contributors</div>'
+  html += '<p class="contributors-list">' + contributors.join(', ') + '</p>'
+  html += '</div>'
+
+  html += '</div>'
+
+  return html
+}
+
+async function regenerateMasterDescription() {
+  console.log('=== REGENERATE MASTER DESCRIPTION ===')
+
+  if (messages.value.length === 0) {
+    $q.notify({
+      type: 'warning',
+      message: 'No descriptions available to generate summary'
+    })
+    return
+  }
+
+  isGenerating.value = true
+
+  try {
+    // Simulate AI processing time for better UX
+    await new Promise(resolve => setTimeout(resolve, 1500))
+
+    const content = generateSummaryContent(messages.value)
+
+    masterDescription.value = {
+      content,
+      timestamp: Date.now(),
+      messageCount: messages.value.length
+    }
+
+    saveMasterDescription()
+
+    $q.notify({
+      type: 'positive',
+      message: 'Summary generated successfully!',
+      icon: 'auto_awesome'
+    })
+
+    console.log('[MASTER] Generated new master description')
+  } catch (error) {
+    console.error('[MASTER] Failed to generate:', error)
+    $q.notify({
+      type: 'negative',
+      message: 'Failed to generate summary'
+    })
+  } finally {
+    isGenerating.value = false
+  }
+}
+
 async function postMessage() {
   console.log('=== POST MESSAGE START ===')
 
@@ -265,56 +534,62 @@ async function postMessage() {
     return
   }
 
-  const message = {
-    author: newMessage.value.author.trim(),
-    content: newMessage.value.content.trim(),
-    timestamp: Date.now(),
-    isFromSheet: false
-  }
+  isPosting.value = true
 
-  console.log('[POST] New message object:', JSON.stringify(message, null, 2))
-  console.log('[POST] Current messages.value length before push:', messages.value.length)
-
-  // Add to local messages immediately
-  messages.value.push(message)
-
-  console.log('[POST] messages.value length after push:', messages.value.length)
-  console.log('[POST] All messages after push:', JSON.stringify(messages.value, null, 2))
-
-  // Save to localStorage
-  saveMessages()
-
-  // Save author name for future use
-  localStorage.setItem('user_name', message.author)
-  console.log('[POST] Saved author name:', message.author)
-
-  // Try to save to Google Sheets
   try {
-    await saveDescription(props.pathKey, message.author, message.content, message.timestamp)
+    const message = {
+      author: newMessage.value.author.trim(),
+      content: newMessage.value.content.trim(),
+      timestamp: Date.now(),
+      isFromSheet: false
+    }
 
-    // Mark as synced
-    message.isFromSheet = true
+    console.log('[POST] New message object:', JSON.stringify(message, null, 2))
+    console.log('[POST] Current messages.value length before push:', messages.value.length)
 
-    $q.notify({
-      type: 'positive',
-      message: 'Description saved to Google Sheets!'
-    })
+    // Add to local messages immediately
+    messages.value.push(message)
 
-    console.log('[POST] Successfully saved to Google Sheets')
-  } catch (error) {
-    console.error('[POST] Failed to save to Google Sheets:', error)
+    console.log('[POST] messages.value length after push:', messages.value.length)
+    console.log('[POST] All messages after push:', JSON.stringify(messages.value, null, 2))
 
-    $q.notify({
-      type: 'warning',
-      message: 'Description saved locally but failed to sync to Google Sheets',
-      timeout: 5000
-    })
+    // Save to localStorage
+    saveMessages()
+
+    // Save author name for future use
+    localStorage.setItem('user_name', message.author)
+    console.log('[POST] Saved author name:', message.author)
+
+    // Try to save to Google Sheets
+    try {
+      await saveDescription(props.pathKey, message.author, message.content, message.timestamp)
+
+      // Mark as synced
+      message.isFromSheet = true
+
+      $q.notify({
+        type: 'positive',
+        message: 'Description saved to Google Sheets!'
+      })
+
+      console.log('[POST] Successfully saved to Google Sheets')
+    } catch (error) {
+      console.error('[POST] Failed to save to Google Sheets:', error)
+
+      $q.notify({
+        type: 'warning',
+        message: 'Description saved locally but failed to sync to Google Sheets',
+        timeout: 5000
+      })
+    }
+
+    // Clear content but keep author name
+    newMessage.value.content = ''
+
+    console.log('=== POST MESSAGE END ===\n')
+  } finally {
+    isPosting.value = false
   }
-
-  // Clear content but keep author name
-  newMessage.value.content = ''
-
-  console.log('=== POST MESSAGE END ===\n')
 }
 
 // Load messages when component mounts or pathKey changes
@@ -336,6 +611,18 @@ watch(() => props.pathKey, (newKey, oldKey) => {
 
 .thread-header {
   margin-bottom: 8px;
+}
+
+.leader-email {
+  color: #1976d2;
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s ease;
+}
+
+.leader-email:hover {
+  color: #1565c0;
+  text-decoration: underline;
 }
 
 .messages-container {
@@ -399,5 +686,137 @@ watch(() => props.pathKey, (newKey, oldKey) => {
 
 .add-message {
   margin-top: 16px;
+}
+
+/* Master Description Styles */
+.master-description-card {
+  background: linear-gradient(135deg, #fffbea 0%, #fff9e6 100%);
+  border: 2px solid #ffd54f;
+  box-shadow: 0 4px 12px rgba(255, 193, 7, 0.15);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  transition: all 0.3s ease;
+}
+
+.master-description-card:hover {
+  box-shadow: 0 6px 16px rgba(255, 193, 7, 0.25);
+}
+
+.master-header {
+  background: rgba(255, 248, 225, 0.6);
+  padding: 12px 16px !important;
+}
+
+.master-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.master-title-section {
+  display: flex;
+  align-items: center;
+}
+
+.master-meta {
+  display: flex;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.master-content {
+  padding: 16px !important;
+  line-height: 1.6;
+}
+
+/* Summary Content Styles */
+.summary-content {
+  color: #424242;
+}
+
+.summary-section {
+  margin-bottom: 20px;
+}
+
+.summary-section:last-child {
+  margin-bottom: 0;
+}
+
+.summary-section-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #f57f17;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+}
+
+.summary-section-title::before {
+  content: '';
+  display: inline-block;
+  width: 3px;
+  height: 14px;
+  background: #ffd54f;
+  margin-right: 8px;
+  border-radius: 2px;
+}
+
+.summary-section p {
+  margin: 0;
+  color: #616161;
+}
+
+.theme-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.theme-tag {
+  background: #fff;
+  border: 1px solid #ffd54f;
+  color: #f57f17;
+  padding: 4px 12px;
+  border-radius: 16px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-transform: lowercase;
+  transition: all 0.2s ease;
+}
+
+.theme-tag:hover {
+  background: #fff8e1;
+  transform: translateY(-1px);
+}
+
+.insights-list {
+  margin: 8px 0 0 0;
+  padding-left: 20px;
+  color: #424242;
+}
+
+.insights-list li {
+  margin-bottom: 12px;
+  line-height: 1.6;
+}
+
+.insights-list li:last-child {
+  margin-bottom: 0;
+}
+
+.insight-author {
+  color: #9e9e9e;
+  font-size: 0.9rem;
+  font-style: italic;
+  font-weight: 500;
+}
+
+.contributors-list {
+  color: #616161;
+  font-style: italic;
 }
 </style>
