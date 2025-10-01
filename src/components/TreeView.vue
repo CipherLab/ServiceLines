@@ -1,11 +1,39 @@
 <template>
   <div>
+    <!-- Search Input -->
+    <q-input
+      v-model="searchText"
+      placeholder="Search service lines..."
+      filled
+      dense
+      class="q-mb-md"
+    >
+      <template v-slot:prepend>
+        <q-icon name="search" />
+      </template>
+      <template v-slot:append>
+        <q-icon
+          v-if="searchText"
+          name="clear"
+          class="cursor-pointer"
+          @click="searchText = ''"
+        />
+      </template>
+    </q-input>
+
+    <!-- Results count when filtering -->
+    <div v-if="searchText" class="q-mb-sm text-caption text-grey-7">
+      <q-icon name="info" size="xs" class="q-mr-xs" />
+      {{ filteredMatchCount }} result{{ filteredMatchCount !== 1 ? 's' : '' }} found
+    </div>
+
     <q-tree
-      :nodes="treeNodes"
+      :nodes="filteredTreeNodes"
       node-key="id"
       :expanded="expandedNodes"
       :selected="selectedNodeId"
       @update:selected="handleNodeClick"
+      :no-nodes-label="searchText ? 'No matching service lines found' : 'No service lines available'"
     >
       <template v-slot:default-header="prop">
         <div
@@ -53,6 +81,8 @@ const nodeIdMap = ref(new Map()) // Maps node names to IDs
 const nodePathMap = ref(new Map()) // Maps node IDs to full path array
 const selectedNodeId = ref(null)
 const expandedNodes = ref([])
+const searchText = ref('')
+const filteredMatchCount = ref(0)
 
 function convertToQuasarTree(nodes, parentPath = [], topLevelName = null) {
   return nodes.map(node => {
@@ -84,6 +114,56 @@ const treeNodes = computed(() => {
   nodeIdMap.value = new Map()
   nodePathMap.value = new Map()
   return convertToQuasarTree(props.treeData)
+})
+
+// Check if a node matches the search text
+function nodeMatchesSearch(node, searchLower) {
+  if (!searchLower) return true
+
+  const label = (node.label || '').toLowerCase()
+  const description = (node.description || '').toLowerCase()
+  const leader = (node.leader || '').toLowerCase()
+
+  return label.includes(searchLower) ||
+         description.includes(searchLower) ||
+         leader.includes(searchLower)
+}
+
+// Filter tree recursively, keeping parents if children match
+function filterTree(nodes, searchLower) {
+  if (!searchLower) return nodes
+
+  let matchCount = 0
+
+  const filtered = nodes.reduce((acc, node) => {
+    // Check if this node matches
+    const nodeMatches = nodeMatchesSearch(node, searchLower)
+
+    // Recursively filter children
+    const filteredChildren = node.children
+      ? filterTree(node.children, searchLower)
+      : []
+
+    // Include this node if it matches OR has matching children
+    if (nodeMatches || filteredChildren.length > 0) {
+      if (nodeMatches) matchCount++
+
+      acc.push({
+        ...node,
+        children: filteredChildren.length > 0 ? filteredChildren : node.children
+      })
+    }
+
+    return acc
+  }, [])
+
+  filteredMatchCount.value = matchCount
+  return filtered
+}
+
+const filteredTreeNodes = computed(() => {
+  const search = searchText.value.trim().toLowerCase()
+  return filterTree(treeNodes.value, search)
 })
 
 // Get node style based on level and top-level color
@@ -146,6 +226,9 @@ function handleNodeClick(nodeId) {
 
 // Watch for currentPath changes and update selection/expansion
 watch(() => props.currentPath, (newPath) => {
+  // Don't update expansion if user is searching
+  if (searchText.value.trim()) return
+
   if (!newPath || newPath.length === 0) {
     selectedNodeId.value = null
     expandedNodes.value = []
@@ -172,6 +255,28 @@ watch(() => props.currentPath, (newPath) => {
     expandedNodes.value = toExpand
   }
 }, { deep: true, immediate: true })
+
+// Auto-expand all nodes when searching
+function getAllNodeIds(nodes) {
+  const ids = []
+  nodes.forEach(node => {
+    ids.push(node.id)
+    if (node.children) {
+      ids.push(...getAllNodeIds(node.children))
+    }
+  })
+  return ids
+}
+
+watch(searchText, (newSearch) => {
+  if (newSearch.trim()) {
+    // Expand all nodes when searching
+    expandedNodes.value = getAllNodeIds(filteredTreeNodes.value)
+  } else {
+    // Restore previous expansion state when clearing search
+    expandedNodes.value = []
+  }
+})
 </script>
 
 <style scoped>
