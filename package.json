@@ -1,0 +1,25 @@
+{
+  "name": "servicelines",
+  "version": "1.0.0",
+  "description": "A Vue-based web application for navigating and managing organizational service lines, hosted on GitHub Pages.",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@quasar/vite-plugin": "^1.10.0",
+    "@vitejs/plugin-vue": "^6.0.1",
+    "vite": "^7.1.7",
+    "vue": "^3.5.22"
+  },
+  "dependencies": {
+    "@quasar/extras": "^1.17.0",
+    "axios": "^1.12.2",
+    "quasar": "^2.18.5"
+  }
+}
