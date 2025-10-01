@@ -47,7 +47,7 @@
         no-caps
         stack
       >
-        <q-icon name="add_circle_outline" size="32px" class="q-mb-sm" />
+        <q-icon name="add_box" size="32px" class="q-mb-sm" />
         <div class="btn-label">Add New</div>
       </q-btn>
     </div>
@@ -143,14 +143,14 @@ const newServiceLine = ref({
 
 // Icon mapping for top level service lines
 const iconMap = {
-  'Business Applications': 'business',
-  'Cloud & Infrastructure': 'cloud',
-  'Data & Analytics': 'bar_chart',
-  'Security': 'security',
-  'Digital Experience': 'devices',
-  'AI & Automation': 'smart_toy',
-  'Integration': 'hub',
-  'default': 'folder'
+  'Business Applications': 'business_center',
+  'Cloud & Infrastructure': 'cloud_queue',
+  'Data & Analytics': 'insights',
+  'Security': 'verified_user',
+  'Digital Experience': 'desktop_mac',
+  'AI & Automation': 'psychology',
+  'Integration': 'share',
+  'default': 'folder_open'
 }
 
 // Color palette for top levels (light, modern colors)
