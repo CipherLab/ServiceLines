@@ -7,15 +7,24 @@ const SHEET_NAME = 'SLs'
 export async function fetchServiceLines() {
   try {
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${SHEET_NAME}?key=${API_KEY}`
+    console.log('[GoogleSheets] Fetching data from:', url)
+
     const response = await axios.get(url)
+    console.log('[GoogleSheets] Response status:', response.status)
+    console.log('[GoogleSheets] Response data:', response.data)
 
     const rows = response.data.values
     if (!rows || rows.length === 0) {
+      console.error('[GoogleSheets] No data found in sheet')
       throw new Error('No data found in sheet')
     }
 
+    console.log('[GoogleSheets] Total rows fetched:', rows.length)
+
     // Parse rows into objects
     const headers = rows[0]
+    console.log('[GoogleSheets] Headers:', headers)
+
     const data = rows.slice(1).map(row => {
       const obj = {}
       headers.forEach((header, index) => {
@@ -24,9 +33,17 @@ export async function fetchServiceLines() {
       return obj
     })
 
+    console.log('[GoogleSheets] Parsed data count:', data.length)
+    console.log('[GoogleSheets] Sample record:', data[0])
+
     return data
   } catch (error) {
-    console.error('Error fetching from Google Sheets:', error)
+    console.error('[GoogleSheets] Error details:', {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status,
+      statusText: error.response?.statusText
+    })
     throw new Error(`Failed to load data: ${error.message}`)
   }
 }
