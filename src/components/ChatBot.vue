@@ -187,6 +187,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { fetchDescriptions } from '../services/googleSheets'
+import { searchServiceLines } from '../services/gemini'
 
 const props = defineProps({
   serviceData: {
@@ -243,15 +244,24 @@ async function analyzeRequirements() {
   recommendations.value = []
 
   try {
-    // Simulate some processing time for better UX
-    await new Promise(resolve => setTimeout(resolve, 800))
+    // Use Gemini AI for intelligent semantic search
+    const matches = await searchServiceLines(
+      requirements.value,
+      props.serviceData,
+      allDescriptions.value
+    )
 
-    const matches = analyzeServiceLines(requirements.value.toLowerCase())
     recommendations.value = matches.slice(0, 6) // Top 6 recommendations
 
-    console.log('[ChatBot] Generated', recommendations.value.length, 'recommendations')
+    console.log('[ChatBot] Generated', recommendations.value.length, 'AI-powered recommendations')
   } catch (error) {
-    console.error('[ChatBot] Analysis error:', error)
+    console.error('[ChatBot] AI search failed, falling back to keyword matching:', error)
+
+    // Fallback to keyword-based search
+    const matches = analyzeServiceLines(requirements.value.toLowerCase())
+    recommendations.value = matches.slice(0, 6)
+
+    console.log('[ChatBot] Generated', recommendations.value.length, 'keyword-based recommendations')
   } finally {
     isAnalyzing.value = false
   }

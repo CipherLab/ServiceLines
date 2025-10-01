@@ -142,6 +142,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useQuasar } from 'quasar'
 import { fetchDescriptions, saveDescription } from '../services/googleSheets'
+import { aggregateDescriptions } from '../services/gemini'
 
 const props = defineProps({
   title: {
@@ -495,10 +496,8 @@ async function regenerateMasterDescription() {
   isGenerating.value = true
 
   try {
-    // Simulate AI processing time for better UX
-    await new Promise(resolve => setTimeout(resolve, 1500))
-
-    const content = generateSummaryContent(messages.value)
+    // Use Gemini to generate AI-powered summary
+    const content = await aggregateDescriptions(messages.value, props.title)
 
     masterDescription.value = {
       content,
@@ -510,16 +509,30 @@ async function regenerateMasterDescription() {
 
     $q.notify({
       type: 'positive',
-      message: 'Summary generated successfully!',
+      message: 'AI summary generated successfully!',
       icon: 'auto_awesome'
     })
 
-    console.log('[MASTER] Generated new master description')
+    console.log('[MASTER] Generated new master description using Gemini')
   } catch (error) {
     console.error('[MASTER] Failed to generate:', error)
+
+    // Fallback to local generation if Gemini fails
+    console.log('[MASTER] Falling back to local generation')
+    const content = generateSummaryContent(messages.value)
+
+    masterDescription.value = {
+      content,
+      timestamp: Date.now(),
+      messageCount: messages.value.length
+    }
+
+    saveMasterDescription()
+
     $q.notify({
-      type: 'negative',
-      message: 'Failed to generate summary'
+      type: 'warning',
+      message: 'Generated local summary (AI service unavailable)',
+      caption: error.message
     })
   } finally {
     isGenerating.value = false

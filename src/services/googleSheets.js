@@ -1,11 +1,12 @@
 import axios from 'axios'
 
-const API_KEY = 'AIzaSyCvvVY2ce4u6UK52_pnsHNjqpbPTyYYMdE'
-const SHEET_ID = '1KwDTLieOALN2bJJ-IXyr1BkGSo9ixPnclMoTYxCPX8g'
+// Load from environment variables (injected at build time by Vite)
+const API_KEY = import.meta.env.VITE_GOOGLE_SHEETS_API_KEY
+const SHEET_ID = import.meta.env.VITE_GOOGLE_SHEET_ID
 const SHEET_NAME = 'SLs'
 
 // Apps Script Web App URL for writing to Google Sheets
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyRgAvSyFI5mD1O8Ap6o7ZCd3XLb1-PjwlaFTbTxXAEn44JEoKcAdr1DAKnuVAcf-JUEA/exec'
+const APPS_SCRIPT_URL = import.meta.env.VITE_APPS_SCRIPT_URL
 
 // Parse CSV text into array of objects
 function parseCSV(text) {

@@ -18,6 +18,7 @@
     "vue": "^3.5.22"
   },
   "dependencies": {
+    "@google/genai": "^1.21.0",
     "@quasar/extras": "^1.17.0",
     "axios": "^1.12.2",
     "quasar": "^2.18.5"

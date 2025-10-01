@@ -65,24 +65,75 @@ The app will be available at `http://localhost:5173/ServiceLines/`
 The app integrates with Google Sheets for data persistence. Follow these steps:
 
 1. **Create your Google Sheet** with two tabs:
-   - `SLs` - Service lines data
-   - `Descriptions` - Team descriptions
+   - `SLs` - Service lines data (columns: #, Service Line (L1), Service Line (L1) Leader, Capability (L2), etc.)
+   - `Descriptions` - Team descriptions (columns: pathKey, author, content, timestamp)
 
-2. **Deploy the Apps Script** (see `apps-script.js`):
+2. **Get Google Sheets API Key**:
+   - Visit [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
+   - Create a new API key
+   - Enable "Google Sheets API" for your project
+   - **Restrict the key**: Application restrictions → HTTP referrers → Add your domain
+   - Copy the API key
+
+3. **Deploy the Apps Script** (for write operations):
    - Open your sheet → Extensions → Apps Script
    - Paste the code from `apps-script.js`
-   - Deploy as Web App
+   - Click Deploy → New deployment → Web app
+   - Set "Who has access" to "Anyone"
    - Copy the deployment URL
 
-3. **Configure the frontend**:
-   ```javascript
-   // In src/services/googleSheets.js
-   const APPS_SCRIPT_URL = 'your-deployment-url-here'
-   const API_KEY = 'your-google-api-key'
-   const SHEET_ID = 'your-sheet-id'
+4. **Configure Local Development**:
+   ```bash
+   # Copy example file
+   cp .env.example .env
+
+   # Edit .env with your values
+   VITE_GOOGLE_SHEETS_API_KEY=AIza...
+   VITE_GOOGLE_SHEET_ID=1KwDT...
+   VITE_APPS_SCRIPT_URL=https://script.google.com/macros/s/...
+
+   # Restart dev server
+   npm run dev
    ```
 
 See [SETUP_APPS_SCRIPT.md](./SETUP_APPS_SCRIPT.md) for detailed instructions.
+
+### Gemini AI Setup (Optional)
+
+The app now supports Google Gemini Flash for AI-powered features:
+
+1. **Get your API key**:
+   - Visit [Google AI Studio](https://aistudio.google.com/app/apikey)
+   - Create a new API key
+   - **Important**: Restrict the key for security:
+     - Go to [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
+     - Edit your API key → Application restrictions
+     - Set "HTTP referrers" and add your domain (e.g., `*.github.io/*`)
+     - Set quota limits to prevent abuse
+
+2. **Local Development**:
+   ```bash
+   # Copy the example env file
+   cp .env.example .env
+
+   # Edit .env and add your key
+   VITE_GEMINI_API_KEY=your_gemini_api_key_here
+
+   # Restart dev server
+   npm run dev
+   ```
+
+3. **Production Deployment** (see Deployment section below)
+
+**AI Features** (enabled with API key):
+- 🤖 **Smart Description Summaries** - Gemini analyzes team inputs and generates professional summaries
+- 🔍 **Semantic Search** - Understands context and intent in business requirements
+- ✨ **Intelligent Matching** - Better recommendations based on meaning, not just keywords
+
+**Fallback Behavior** (without API key):
+- Local keyword-based summaries
+- Pattern matching for search
+- Full functionality maintained
 
 ## 🏗️ Technology Stack
 
@@ -95,6 +146,7 @@ See [SETUP_APPS_SCRIPT.md](./SETUP_APPS_SCRIPT.md) for detailed instructions.
 ### Data & Storage
 - **Google Sheets API** - Primary data source
 - **Google Apps Script** - Serverless backend for write operations
+- **Google Gemini Flash** - AI-powered summaries and semantic search
 - **LocalStorage** - Client-side persistence and offline support
 
 ### Architecture Patterns
@@ -114,7 +166,8 @@ ServiceLines/
 │   │   ├── ChatBot.vue           # AI requirements analyzer
 │   │   └── DescriptionThread.vue # Collaborative descriptions
 │   ├── services/
-│   │   └── googleSheets.js       # Google Sheets integration
+│   │   ├── googleSheets.js       # Google Sheets integration
+│   │   └── gemini.js             # Gemini AI integration
 │   ├── App.vue                   # Root component
 │   └── main.js                   # Application entry point
 ├── public/
@@ -199,14 +252,51 @@ const iconMap = {
 
 ### GitHub Pages
 
-The app is configured for GitHub Pages deployment:
+The app is configured for automatic deployment via GitHub Actions:
+
+1. **Add Secrets to GitHub**:
+   - Go to your repo → Settings → Secrets and variables → Actions
+   - Add the following secrets (click "New repository secret" for each):
+
+   **Required for Google Sheets:**
+   - Name: `VITE_GOOGLE_SHEETS_API_KEY`
+     Value: Your Google Sheets API key
+
+   - Name: `VITE_GOOGLE_SHEET_ID`
+     Value: Your Google Sheet ID (from the URL)
+
+   - Name: `VITE_APPS_SCRIPT_URL`
+     Value: Your Apps Script deployment URL
+
+   **Optional for AI features:**
+   - Name: `VITE_GEMINI_API_KEY`
+     Value: Your Gemini API key
+
+2. **Push to main branch**:
+   ```bash
+   git add .
+   git commit -m "Your changes"
+   git push origin main
+   ```
+
+3. **Automatic deployment**:
+   - GitHub Actions builds with the secret injected
+   - Deploys to: `https://yourusername.github.io/ServiceLines/`
+
+**Security Note**: API keys will be visible in the client-side JavaScript bundle. This is unavoidable for static sites. Protect your keys by:
+- **For both keys**: Set HTTP referrer restrictions in Google Cloud Console (restrict to your GitHub Pages domain)
+- **For both keys**: Set daily quota limits to prevent abuse
+- **For Sheets API**: Restrict to only "Google Sheets API" in API restrictions
+- **For Gemini API**: Restrict to only "Generative Language API" in API restrictions
+- Use dedicated keys for this public app (not your main account keys)
+
+### Manual Build
 
 ```bash
 # Build for production
-npm run build
+VITE_GEMINI_API_KEY=your_key npm run build
 
 # The dist/ folder contains your static files
-# Deploy to: https://cipherlab.github.io/ServiceLines/
 ```
 
 The `base` path in `vite.config.js` is set to `/ServiceLines/` for GitHub Pages.
