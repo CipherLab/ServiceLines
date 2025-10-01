@@ -2,7 +2,6 @@
   <div class="description-thread">
     <div class="thread-header">
       <div class="text-h6">{{ title }}</div>
-
       <!-- Editable Leader -->
       <div v-if="editingLeader" class="leader-edit-container">
         <q-input
