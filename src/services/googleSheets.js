@@ -197,22 +197,32 @@ export async function fetchMasterDescriptions() {
       return []
     }
 
+    console.log('[MasterDescriptions] Raw rows from sheet:', rows)
+
     const headers = rows[0]
-    const data = rows.slice(1).map(row => {
+    console.log('[MasterDescriptions] Headers:', headers)
+
+    const data = rows.slice(1).map((row, idx) => {
       const obj = {}
       headers.forEach((header, index) => {
         obj[header] = row[index] || ''
       })
+      console.log(`[MasterDescriptions] Row ${idx + 1}:`, obj)
       return obj
     })
 
     // Transform to the expected format
-    const masterDescriptions = data.map(row => ({
-      pathKey: row.pathKey || '',
-      content: row.content || '',
-      timestamp: parseInt(row.timestamp) || Date.now(),
-      messageCount: parseInt(row.messageCount) || 0
-    }))
+    const masterDescriptions = data.map((row, idx) => {
+      const result = {
+        pathKey: row.pathKey || '',
+        content: row.content || '',
+        timestamp: parseInt(row.timestamp) || Date.now(),
+        messageCount: parseInt(row.messageCount) || 0
+      }
+      console.log(`[MasterDescriptions] Transformed row ${idx + 1}:`, result)
+      console.log(`[MasterDescriptions] PathKey length: ${result.pathKey.length}, content: "${result.pathKey}"`)
+      return result
+    })
 
     console.log('[MasterDescriptions] Loaded', masterDescriptions.length, 'master descriptions from Google Sheets')
     return masterDescriptions

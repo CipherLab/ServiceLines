@@ -339,7 +339,11 @@ async function loadMasterDescription() {
   // First try to load from Google Sheets
   try {
     const allMasterDescriptions = await fetchMasterDescriptions()
+    console.log('[MASTER] All master descriptions from sheet:', allMasterDescriptions)
+    console.log('[MASTER] Looking for pathKey:', props.pathKey)
+
     const sheetMaster = allMasterDescriptions.find(desc => desc.pathKey === props.pathKey)
+    console.log('[MASTER] Found match:', sheetMaster)
 
     if (sheetMaster) {
       masterDescription.value = sheetMaster
