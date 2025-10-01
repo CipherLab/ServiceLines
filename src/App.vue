@@ -53,7 +53,6 @@
         </div>
       </q-scroll-area>
     </q-drawer>
-
     <q-page-container>
       <q-page class="q-pa-md">
         <q-card>
