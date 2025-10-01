@@ -108,6 +108,10 @@ const props = defineProps({
   data: {
     type: Array,
     required: true
+  },
+  externalPath: {
+    type: Array,
+    default: null
   }
 })
 
@@ -348,6 +352,14 @@ watch(currentPath, (newPath) => {
 
   emit('path-changed', newPath)
 }, { deep: true })
+
+// Watch for external path changes (from tree or chatbot navigation)
+watch(() => props.externalPath, (newPath) => {
+  if (newPath && newPath.length > 0) {
+    console.log('[NavigateView] External path received:', newPath)
+    currentPath.value = newPath
+  }
+}, { immediate: true, deep: true })
 
 // On mount, log the restored path
 onMounted(() => {

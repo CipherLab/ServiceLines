@@ -86,6 +86,7 @@
                 v-else
                 :key="navigateViewKey"
                 :data="serviceLineData"
+                :external-path="externalNavigationPath"
                 @add-service-line="handleAddServiceLine"
                 @path-changed="handlePathChanged"
               />
@@ -120,6 +121,7 @@ const serviceLineData = ref([])
 const treeDrawerOpen = ref(true)
 const currentPath = ref([])
 const navigateViewKey = ref(0)
+const externalNavigationPath = ref(null)
 
 // Store NavigateView reference for programmatic navigation
 const navigateViewRef = ref(null)
@@ -209,14 +211,14 @@ function handleTreeNavigation(pathArray) {
     level: index
   }))
 
-  // Update localStorage so NavigateView picks it up
+  // Update localStorage for persistence
   localStorage.setItem('navigation_current_path', JSON.stringify(navigationPath))
 
   // Update our internal state
   currentPath.value = navigationPath
 
-  // Force NavigateView to remount and read from localStorage
-  navigateViewKey.value++
+  // Pass to NavigateView via prop
+  externalNavigationPath.value = navigationPath
 
   // Switch to Navigate tab
   activeTab.value = 'navigate'
@@ -240,14 +242,14 @@ function handleChatBotNavigation(pathArray) {
     level: index
   }))
 
-  // Update localStorage so NavigateView picks it up
+  // Update localStorage for persistence
   localStorage.setItem('navigation_current_path', JSON.stringify(navigationPath))
 
   // Update our internal state
   currentPath.value = navigationPath
 
-  // Force NavigateView to remount and read from localStorage
-  navigateViewKey.value++
+  // Pass to NavigateView via prop
+  externalNavigationPath.value = navigationPath
 
   // Switch to Navigate tab
   activeTab.value = 'navigate'
