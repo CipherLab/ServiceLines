@@ -202,10 +202,32 @@ function handlePathChanged(path) {
 function handleTreeNavigation(pathArray) {
   // When tree node is clicked, update the NavigateView
   // pathArray is an array of node names from root to clicked node
-  currentPath.value = pathArray.map((name, index) => ({
+  console.log('[App] Tree navigation to:', pathArray)
+
+  const navigationPath = pathArray.map((name, index) => ({
     name: name,
     level: index
   }))
+
+  // Update localStorage so NavigateView picks it up
+  localStorage.setItem('navigation_current_path', JSON.stringify(navigationPath))
+
+  // Update our internal state
+  currentPath.value = navigationPath
+
+  // Force NavigateView to remount and read from localStorage
+  navigateViewKey.value++
+
+  // Switch to Navigate tab
+  activeTab.value = 'navigate'
+
+  // Notify user
+  $q.notify({
+    type: 'info',
+    message: `Navigating to: ${pathArray.join(' > ')}`,
+    icon: 'account_tree',
+    timeout: 2000
+  })
 }
 
 function handleChatBotNavigation(pathArray) {
