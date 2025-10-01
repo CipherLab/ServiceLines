@@ -47,6 +47,8 @@
             filled
             autofocus
             class="edit-input"
+            :disable="isSavingEdit"
+            :loading="isSavingEdit"
             @keyup.enter="saveEdit(option)"
             @keyup.esc="cancelEdit"
           />
@@ -58,6 +60,8 @@
               size="sm"
               icon="check"
               color="positive"
+              :loading="isSavingEdit"
+              :disable="isSavingEdit"
               @click.stop="saveEdit(option)"
             />
             <q-btn
@@ -67,6 +71,7 @@
               size="sm"
               icon="close"
               color="negative"
+              :disable="isSavingEdit"
               @click.stop="cancelEdit"
             />
           </div>
@@ -191,6 +196,7 @@ const newServiceLine = ref({
 })
 const editingOption = ref(null)
 const editingName = ref('')
+const isSavingEdit = ref(false)
 
 // Icon mapping for top level service lines
 const iconMap = {
@@ -382,6 +388,8 @@ async function saveEdit(oldName) {
     return
   }
 
+  isSavingEdit.value = true
+
   try {
     // Update in Google Sheets
     await updateServiceLine(
@@ -412,6 +420,8 @@ async function saveEdit(oldName) {
       type: 'negative',
       message: 'Failed to update name: ' + error.message
     })
+  } finally {
+    isSavingEdit.value = false
   }
 }
 

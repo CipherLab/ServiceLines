@@ -12,6 +12,8 @@
           autofocus
           label="Leader Name"
           class="leader-edit-input"
+          :disable="isSavingLeader"
+          :loading="isSavingLeader"
           @keyup.enter="saveLeaderEdit"
           @keyup.esc="cancelLeaderEdit"
         />
@@ -23,6 +25,8 @@
             size="sm"
             icon="check"
             color="positive"
+            :loading="isSavingLeader"
+            :disable="isSavingLeader"
             @click="saveLeaderEdit"
           />
           <q-btn
@@ -32,6 +36,7 @@
             size="sm"
             icon="close"
             color="negative"
+            :disable="isSavingLeader"
             @click="cancelLeaderEdit"
           />
         </div>
@@ -221,6 +226,7 @@ const masterDescription = ref(null)
 const isGenerating = ref(false)
 const editingLeader = ref(false)
 const editingLeaderName = ref('')
+const isSavingLeader = ref(false)
 
 const sortedMessages = computed(() => {
   return [...messages.value].sort((a, b) => b.timestamp - a.timestamp)
@@ -646,6 +652,8 @@ function cancelLeaderEdit() {
 async function saveLeaderEdit() {
   const newLeader = editingLeaderName.value.trim()
 
+  isSavingLeader.value = true
+
   try {
     // Determine the level based on pathKey structure
     const pathParts = props.pathKey.split('__')
@@ -671,13 +679,16 @@ async function saveLeaderEdit() {
     cancelLeaderEdit()
 
     // Reload the page to show updated data
-    window.location.reload()
+    setTimeout(() => {
+      window.location.reload()
+    }, 500)
   } catch (error) {
     console.error('[DescriptionThread] Error updating leader:', error)
     $q.notify({
       type: 'negative',
       message: 'Failed to update leader name: ' + error.message
     })
+    isSavingLeader.value = false
   }
 }
 

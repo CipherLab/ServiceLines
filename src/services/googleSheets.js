@@ -25,50 +25,30 @@ function parseCSV(text) {
 
 export async function fetchServiceLines() {
   try {
-    // Try loading from local CSV first
-    console.log('[ServiceLines] Loading from local CSV file')
-    const response = await fetch('/ServiceLines/ServiceLines.csv')
+    console.log('[ServiceLines] Loading from Google Sheets')
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${SHEET_NAME}?key=${API_KEY}`
+    const response = await axios.get(url)
 
-    if (!response.ok) {
-      throw new Error(`Failed to load CSV: ${response.statusText}`)
+    const rows = response.data.values
+    if (!rows || rows.length === 0) {
+      throw new Error('No data found in sheet')
     }
 
-    const text = await response.text()
-    const data = parseCSV(text)
+    const headers = rows[0]
+    const data = rows.slice(1).map(row => {
+      const obj = {}
+      headers.forEach((header, index) => {
+        obj[header] = row[index] || ''
+      })
+      return obj
+    })
 
-    console.log('[ServiceLines] Loaded', data.length, 'records from CSV')
+    console.log('[ServiceLines] Loaded', data.length, 'records from Google Sheets')
     console.log('[ServiceLines] Sample record:', data[0])
-
     return data
   } catch (error) {
-    console.error('[ServiceLines] Error loading CSV:', error)
-
-    // Fallback to Google Sheets
-    try {
-      console.log('[ServiceLines] Falling back to Google Sheets')
-      const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${SHEET_NAME}?key=${API_KEY}`
-      const response = await axios.get(url)
-
-      const rows = response.data.values
-      if (!rows || rows.length === 0) {
-        throw new Error('No data found in sheet')
-      }
-
-      const headers = rows[0]
-      const data = rows.slice(1).map(row => {
-        const obj = {}
-        headers.forEach((header, index) => {
-          obj[header] = row[index] || ''
-        })
-        return obj
-      })
-
-      console.log('[ServiceLines] Loaded', data.length, 'records from Google Sheets')
-      return data
-    } catch (sheetsError) {
-      console.error('[ServiceLines] Google Sheets error:', sheetsError)
-      throw new Error(`Failed to load data: ${sheetsError.message}`)
-    }
+    console.error('[ServiceLines] Error loading from Google Sheets:', error)
+    throw new Error(`Failed to load data from Google Sheets: ${error.message}`)
   }
 }
 
