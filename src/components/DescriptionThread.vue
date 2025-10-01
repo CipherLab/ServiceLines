@@ -141,7 +141,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useQuasar } from 'quasar'
-import { fetchDescriptions, saveDescription } from '../services/googleSheets'
+import { fetchDescriptions, saveDescription, fetchMasterDescriptions, saveMasterDescription as saveMasterDescriptionToSheet } from '../services/googleSheets'
 import { aggregateDescriptions } from '../services/gemini'
 
 const props = defineProps({
@@ -333,27 +333,66 @@ function saveMessages() {
   console.log('=== SAVE MESSAGES END ===\n')
 }
 
-function loadMasterDescription() {
+async function loadMasterDescription() {
+  console.log('[MASTER] Loading master description for pathKey:', props.pathKey)
+
+  // First try to load from Google Sheets
+  try {
+    const allMasterDescriptions = await fetchMasterDescriptions()
+    const sheetMaster = allMasterDescriptions.find(desc => desc.pathKey === props.pathKey)
+
+    if (sheetMaster) {
+      masterDescription.value = sheetMaster
+      console.log('[MASTER] Loaded master description from Google Sheets')
+
+      // Also save to localStorage as backup
+      const storageKey = `master_description_${props.pathKey}`
+      localStorage.setItem(storageKey, JSON.stringify(sheetMaster))
+      return
+    }
+  } catch (error) {
+    console.error('[MASTER] Failed to load from Google Sheets:', error)
+  }
+
+  // Fallback to localStorage
   const storageKey = `master_description_${props.pathKey}`
   const stored = localStorage.getItem(storageKey)
 
   if (stored) {
     try {
       masterDescription.value = JSON.parse(stored)
-      console.log('[MASTER] Loaded master description:', masterDescription.value)
+      console.log('[MASTER] Loaded master description from localStorage')
     } catch (e) {
       console.error('[MASTER] Failed to parse master description:', e)
       masterDescription.value = null
     }
   } else {
     masterDescription.value = null
+    console.log('[MASTER] No master description found')
   }
 }
 
-function saveMasterDescription() {
+async function saveMasterDescription() {
+  console.log('[MASTER] Saving master description for pathKey:', props.pathKey)
+
+  // Save to localStorage immediately
   const storageKey = `master_description_${props.pathKey}`
   localStorage.setItem(storageKey, JSON.stringify(masterDescription.value))
-  console.log('[MASTER] Saved master description')
+  console.log('[MASTER] Saved to localStorage')
+
+  // Try to save to Google Sheets
+  try {
+    await saveMasterDescriptionToSheet(
+      props.pathKey,
+      masterDescription.value.content,
+      masterDescription.value.timestamp,
+      masterDescription.value.messageCount
+    )
+    console.log('[MASTER] Saved to Google Sheets successfully')
+  } catch (error) {
+    console.error('[MASTER] Failed to save to Google Sheets:', error)
+    // Not throwing error - localStorage save already succeeded
+  }
 }
 
 function extractKeywords(text) {
@@ -505,11 +544,11 @@ async function regenerateMasterDescription() {
       messageCount: messages.value.length
     }
 
-    saveMasterDescription()
+    await saveMasterDescription()
 
     $q.notify({
       type: 'positive',
-      message: 'AI summary generated successfully!',
+      message: 'AI summary generated and synced to Google Sheets!',
       icon: 'auto_awesome'
     })
 
@@ -527,7 +566,7 @@ async function regenerateMasterDescription() {
       messageCount: messages.value.length
     }
 
-    saveMasterDescription()
+    await saveMasterDescription()
 
     $q.notify({
       type: 'warning',

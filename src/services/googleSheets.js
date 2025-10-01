@@ -184,6 +184,83 @@ export async function saveDescription(pathKey, author, content, timestamp) {
   }
 }
 
+export async function fetchMasterDescriptions() {
+  try {
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/MasterDescriptions?key=${API_KEY}`
+    console.log('[MasterDescriptions] Fetching from Google Sheets')
+
+    const response = await axios.get(url)
+
+    const rows = response.data.values
+    if (!rows || rows.length === 0) {
+      console.log('[MasterDescriptions] No data found in MasterDescriptions sheet')
+      return []
+    }
+
+    const headers = rows[0]
+    const data = rows.slice(1).map(row => {
+      const obj = {}
+      headers.forEach((header, index) => {
+        obj[header] = row[index] || ''
+      })
+      return obj
+    })
+
+    // Transform to the expected format
+    const masterDescriptions = data.map(row => ({
+      pathKey: row.pathKey || '',
+      content: row.content || '',
+      timestamp: parseInt(row.timestamp) || Date.now(),
+      messageCount: parseInt(row.messageCount) || 0
+    }))
+
+    console.log('[MasterDescriptions] Loaded', masterDescriptions.length, 'master descriptions from Google Sheets')
+    return masterDescriptions
+  } catch (error) {
+    // If the sheet doesn't exist or there's an error, gracefully return empty array
+    if (error.response?.status === 400) {
+      console.log('[MasterDescriptions] MasterDescriptions sheet not found (this is OK)')
+    } else {
+      console.error('[MasterDescriptions] Error fetching master descriptions:', error)
+    }
+    return []
+  }
+}
+
+export async function saveMasterDescription(pathKey, content, timestamp, messageCount) {
+  if (!APPS_SCRIPT_URL) {
+    console.error('[SaveMasterDescription] APPS_SCRIPT_URL not configured')
+    throw new Error('Apps Script URL not configured. Please deploy the Apps Script and update googleSheets.js')
+  }
+
+  try {
+    console.log('[SaveMasterDescription] Posting to Apps Script:', { pathKey, timestamp, messageCount })
+
+    // Use fetch with form data to avoid CORS preflight
+    const formData = new URLSearchParams()
+    formData.append('action', 'saveMasterDescription')
+    formData.append('data', JSON.stringify({ pathKey, content, timestamp, messageCount }))
+
+    const response = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      body: formData,
+      redirect: 'follow'
+    })
+
+    const data = await response.json()
+    console.log('[SaveMasterDescription] Response:', data)
+
+    if (!data.success) {
+      throw new Error(data.message || 'Failed to save master description')
+    }
+
+    return data
+  } catch (error) {
+    console.error('[SaveMasterDescription] Error:', error)
+    throw new Error(`Failed to save master description: ${error.message}`)
+  }
+}
+
 export function buildTree(data) {
   const tree = []
 

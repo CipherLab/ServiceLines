@@ -37,6 +37,8 @@ function doPost(e) {
       return handleAddServiceLine(ss, data);
     } else if (action === 'addDescription') {
       return handleAddDescription(ss, data);
+    } else if (action === 'saveMasterDescription') {
+      return handleSaveMasterDescription(ss, data);
     } else {
       return createCorsResponse({ success: false, message: 'Unknown action: ' + action });
     }
@@ -95,6 +97,55 @@ function handleAddDescription(ss, data) {
   }
 }
 
+function handleSaveMasterDescription(ss, data) {
+  try {
+    let sheet = ss.getSheetByName('MasterDescriptions');
+
+    // Create the sheet if it doesn't exist
+    if (!sheet) {
+      sheet = ss.insertSheet('MasterDescriptions');
+      // Add headers
+      sheet.appendRow(['pathKey', 'content', 'timestamp', 'messageCount']);
+    }
+
+    // Check if a master description already exists for this pathKey
+    const dataRange = sheet.getDataRange();
+    const values = dataRange.getValues();
+
+    let rowIndex = -1;
+    for (let i = 1; i < values.length; i++) {
+      if (values[i][0] === data.pathKey) {
+        rowIndex = i + 1; // +1 because sheet rows are 1-indexed
+        break;
+      }
+    }
+
+    // Update existing or append new
+    if (rowIndex > 0) {
+      // Update existing row
+      sheet.getRange(rowIndex, 1, 1, 4).setValues([[
+        data.pathKey || '',
+        data.content || '',
+        data.timestamp || Date.now(),
+        data.messageCount || 0
+      ]]);
+    } else {
+      // Append new row
+      sheet.appendRow([
+        data.pathKey || '',
+        data.content || '',
+        data.timestamp || Date.now(),
+        data.messageCount || 0
+      ]);
+    }
+
+    return createCorsResponse({ success: true, message: 'Master description saved successfully' });
+  } catch (error) {
+    Logger.log('Error in handleSaveMasterDescription: ' + error.toString());
+    return createCorsResponse({ success: false, message: 'Error saving master description: ' + error.toString() });
+  }
+}
+
 function createCorsResponse(responseData) {
   const output = ContentService
     .createTextOutput(JSON.stringify(responseData))
@@ -138,5 +189,18 @@ function testAddDescription() {
   };
 
   const result = handleAddDescription(ss, testData);
+  Logger.log(result.getContent());
+}
+
+function testSaveMasterDescription() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const testData = {
+    pathKey: 'Test Path',
+    content: '<div>Test master description HTML content</div>',
+    timestamp: Date.now(),
+    messageCount: 5
+  };
+
+  const result = handleSaveMasterDescription(ss, testData);
   Logger.log(result.getContent());
 }
