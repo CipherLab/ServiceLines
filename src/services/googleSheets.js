@@ -4,6 +4,9 @@ const API_KEY = 'AIzaSyCvvVY2ce4u6UK52_pnsHNjqpbPTyYYMdE'
 const SHEET_ID = '1KwDTLieOALN2bJJ-IXyr1BkGSo9ixPnclMoTYxCPX8g'
 const SHEET_NAME = 'SLs'
 
+// Apps Script Web App URL for writing to Google Sheets
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzyCXNS41ZPqsa9n12_mMlS4OvOPogOm-ZO58RGj3DY3RcvZLSlX2hbJaNZ3yiMk3MOkw/exec'
+
 // Parse CSV text into array of objects
 function parseCSV(text) {
   const lines = text.trim().split('\n')
@@ -69,14 +72,30 @@ export async function fetchServiceLines() {
 }
 
 export async function appendServiceLine(rowData) {
-  // Note: Writing to Google Sheets requires OAuth authentication
-  // For now, this is a placeholder that would need proper setup
-  console.log('Would append:', rowData)
+  if (!APPS_SCRIPT_URL) {
+    console.error('[AppendServiceLine] APPS_SCRIPT_URL not configured')
+    throw new Error('Apps Script URL not configured. Please deploy the Apps Script and update googleSheets.js')
+  }
 
-  // To implement: Use gapi.client.sheets.spreadsheets.values.append
-  // with proper OAuth 2.0 authentication
+  try {
+    console.log('[AppendServiceLine] Posting to Apps Script:', rowData)
 
-  return Promise.resolve()
+    const response = await axios.post(APPS_SCRIPT_URL, {
+      action: 'addServiceLine',
+      row: rowData
+    })
+
+    console.log('[AppendServiceLine] Response:', response.data)
+
+    if (!response.data.success) {
+      throw new Error(response.data.message || 'Failed to add service line')
+    }
+
+    return response.data
+  } catch (error) {
+    console.error('[AppendServiceLine] Error:', error)
+    throw new Error(`Failed to save to Google Sheets: ${error.message}`)
+  }
 }
 
 export async function fetchDescriptions() {
@@ -120,6 +139,36 @@ export async function fetchDescriptions() {
       console.error('[Descriptions] Error fetching descriptions:', error)
     }
     return []
+  }
+}
+
+export async function saveDescription(pathKey, author, content, timestamp) {
+  if (!APPS_SCRIPT_URL) {
+    console.error('[SaveDescription] APPS_SCRIPT_URL not configured')
+    throw new Error('Apps Script URL not configured. Please deploy the Apps Script and update googleSheets.js')
+  }
+
+  try {
+    console.log('[SaveDescription] Posting to Apps Script:', { pathKey, author, content, timestamp })
+
+    const response = await axios.post(APPS_SCRIPT_URL, {
+      action: 'addDescription',
+      pathKey,
+      author,
+      content,
+      timestamp
+    })
+
+    console.log('[SaveDescription] Response:', response.data)
+
+    if (!response.data.success) {
+      throw new Error(response.data.message || 'Failed to add description')
+    }
+
+    return response.data
+  } catch (error) {
+    console.error('[SaveDescription] Error:', error)
+    throw new Error(`Failed to save description: ${error.message}`)
   }
 }
 

@@ -102,11 +102,13 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useQuasar } from 'quasar'
 import NavigateView from './components/NavigateView.vue'
 import TreeView from './components/TreeView.vue'
 import ChatBot from './components/ChatBot.vue'
-import { fetchServiceLines, buildTree } from './services/googleSheets'
+import { fetchServiceLines, buildTree, appendServiceLine } from './services/googleSheets'
 
+const $q = useQuasar()
 const activeTab = ref('navigate')
 const loading = ref(true)
 const error = ref(null)
@@ -164,9 +166,27 @@ async function loadData() {
   }
 }
 
-function handleAddServiceLine(newRow) {
-  serviceLineData.value.push(newRow)
-  // TODO: Persist to Google Sheets
+async function handleAddServiceLine(newRow) {
+  try {
+    // Add to local data immediately for instant UI update
+    serviceLineData.value.push(newRow)
+
+    // Try to persist to Google Sheets
+    await appendServiceLine(newRow)
+
+    $q.notify({
+      type: 'positive',
+      message: 'Service line saved to Google Sheets!'
+    })
+  } catch (error) {
+    console.error('[App] Failed to save service line:', error)
+
+    $q.notify({
+      type: 'warning',
+      message: 'Service line added locally but failed to save to Google Sheets. Check console for details.',
+      timeout: 5000
+    })
+  }
 }
 
 function handlePathChanged(path) {

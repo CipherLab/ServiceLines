@@ -83,7 +83,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useQuasar } from 'quasar'
 import DescriptionThread from './DescriptionThread.vue'
 
@@ -97,7 +97,22 @@ const props = defineProps({
 const emit = defineEmits(['add-service-line', 'path-changed'])
 
 const $q = useQuasar()
-const currentPath = ref([])
+
+// Load currentPath from localStorage on mount
+function loadPersistedPath() {
+  const stored = localStorage.getItem('navigation_current_path')
+  if (stored) {
+    try {
+      return JSON.parse(stored)
+    } catch (e) {
+      console.error('[NavigateView] Failed to parse persisted path:', e)
+      return []
+    }
+  }
+  return []
+}
+
+const currentPath = ref(loadPersistedPath())
 const showAddDialog = ref(false)
 const newServiceLine = ref({
   name: '',
@@ -292,8 +307,21 @@ function addServiceLine() {
 
 // Watch for path changes and emit to parent
 watch(currentPath, (newPath) => {
+  // Persist the path to localStorage
+  console.log('[NavigateView] Saving current path to localStorage:', newPath)
+  localStorage.setItem('navigation_current_path', JSON.stringify(newPath))
+
   emit('path-changed', newPath)
 }, { deep: true })
+
+// On mount, log the restored path
+onMounted(() => {
+  console.log('[NavigateView] Component mounted, current path:', currentPath.value)
+  if (currentPath.value.length > 0) {
+    console.log('[NavigateView] Restored navigation path from localStorage')
+    console.log('[NavigateView] Current pathKey:', pathKey.value)
+  }
+})
 </script>
 
 <style scoped>
