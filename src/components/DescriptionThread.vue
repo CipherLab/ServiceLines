@@ -2,8 +2,57 @@
   <div class="description-thread">
     <div class="thread-header">
       <div class="text-h6">{{ title }}</div>
-      <div v-if="leader" class="text-subtitle2 text-grey-7">
-        Leader: <a :href="leaderEmail" class="leader-email">{{ leader }}</a>
+
+      <!-- Editable Leader -->
+      <div v-if="editingLeader" class="leader-edit-container">
+        <q-input
+          v-model="editingLeaderName"
+          dense
+          filled
+          autofocus
+          label="Leader Name"
+          class="leader-edit-input"
+          @keyup.enter="saveLeaderEdit"
+          @keyup.esc="cancelLeaderEdit"
+        />
+        <div class="leader-edit-actions">
+          <q-btn
+            flat
+            dense
+            round
+            size="sm"
+            icon="check"
+            color="positive"
+            @click="saveLeaderEdit"
+          />
+          <q-btn
+            flat
+            dense
+            round
+            size="sm"
+            icon="close"
+            color="negative"
+            @click="cancelLeaderEdit"
+          />
+        </div>
+      </div>
+
+      <!-- Normal Leader Display -->
+      <div v-else-if="leader || !editingLeader" class="text-subtitle2 text-grey-7 leader-display">
+        Leader:
+        <a v-if="leader" :href="leaderEmail" class="leader-email">{{ leader }}</a>
+        <span v-else class="text-grey-5 text-italic">Not assigned</span>
+        <q-btn
+          flat
+          dense
+          round
+          size="xs"
+          icon="edit"
+          class="leader-edit-icon"
+          @click="startLeaderEdit"
+        >
+          <q-tooltip>Edit leader</q-tooltip>
+        </q-btn>
       </div>
     </div>
 
@@ -141,7 +190,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useQuasar } from 'quasar'
-import { fetchDescriptions, saveDescription, fetchMasterDescriptions, saveMasterDescription as saveMasterDescriptionToSheet } from '../services/googleSheets'
+import { fetchDescriptions, saveDescription, fetchMasterDescriptions, saveMasterDescription as saveMasterDescriptionToSheet, updateServiceLine } from '../services/googleSheets'
 import { aggregateDescriptions } from '../services/gemini'
 
 const props = defineProps({
@@ -170,6 +219,8 @@ const isLoading = ref(false)
 const isPosting = ref(false)
 const masterDescription = ref(null)
 const isGenerating = ref(false)
+const editingLeader = ref(false)
+const editingLeaderName = ref('')
 
 const sortedMessages = computed(() => {
   return [...messages.value].sort((a, b) => b.timestamp - a.timestamp)
@@ -582,6 +633,54 @@ async function regenerateMasterDescription() {
   }
 }
 
+function startLeaderEdit() {
+  editingLeader.value = true
+  editingLeaderName.value = props.leader || ''
+}
+
+function cancelLeaderEdit() {
+  editingLeader.value = false
+  editingLeaderName.value = ''
+}
+
+async function saveLeaderEdit() {
+  const newLeader = editingLeaderName.value.trim()
+
+  try {
+    // Determine the level based on pathKey structure
+    const pathParts = props.pathKey.split('__')
+    const level = pathParts.length - 1
+
+    // Update in Google Sheets
+    await updateServiceLine(
+      level,
+      'leader',
+      props.leader || '',
+      newLeader,
+      pathParts.map((name, idx) => ({ name, level: idx }))
+    )
+
+    $q.notify({
+      type: 'positive',
+      message: 'Leader name updated and synced to Google Sheets!',
+      icon: 'check_circle'
+    })
+
+    console.log('[DescriptionThread] Updated leader successfully')
+
+    cancelLeaderEdit()
+
+    // Reload the page to show updated data
+    window.location.reload()
+  } catch (error) {
+    console.error('[DescriptionThread] Error updating leader:', error)
+    $q.notify({
+      type: 'negative',
+      message: 'Failed to update leader name: ' + error.message
+    })
+  }
+}
+
 async function postMessage() {
   console.log('=== POST MESSAGE START ===')
 
@@ -679,6 +778,42 @@ watch(() => props.pathKey, (newKey, oldKey) => {
 .leader-email:hover {
   color: #1565c0;
   text-decoration: underline;
+}
+
+.leader-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.leader-edit-icon {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.leader-display:hover .leader-edit-icon {
+  opacity: 0.7;
+}
+
+.leader-edit-icon:hover {
+  opacity: 1 !important;
+}
+
+.leader-edit-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.leader-edit-input {
+  flex: 1;
+  max-width: 300px;
+}
+
+.leader-edit-actions {
+  display: flex;
+  gap: 4px;
 }
 
 .messages-container {

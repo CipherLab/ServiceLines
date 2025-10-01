@@ -39,6 +39,8 @@ function doPost(e) {
       return handleAddDescription(ss, data);
     } else if (action === 'saveMasterDescription') {
       return handleSaveMasterDescription(ss, data);
+    } else if (action === 'updateServiceLine') {
+      return handleUpdateServiceLine(ss, data);
     } else {
       return createCorsResponse({ success: false, message: 'Unknown action: ' + action });
     }
@@ -146,6 +148,91 @@ function handleSaveMasterDescription(ss, data) {
   }
 }
 
+function handleUpdateServiceLine(ss, data) {
+  try {
+    const sheet = ss.getSheetByName('SLs');
+    if (!sheet) {
+      return createCorsResponse({ success: false, message: 'Sheet "SLs" not found' });
+    }
+
+    // Get all data
+    const dataRange = sheet.getDataRange();
+    const values = dataRange.getValues();
+    const headers = values[0];
+
+    // Find the column indices
+    const l1Col = headers.indexOf('Service Line (L1)');
+    const l2Col = headers.indexOf('Capability (L2)');
+    const l3Col = headers.indexOf('Solution Set (L3)');
+    const l4Col = headers.indexOf('Sub-function (L4)');
+    const l1LeaderCol = headers.indexOf('Service Line (L1) Leader');
+    const l2LeaderCol = headers.indexOf('Capability (L2) Leader');
+    const l3LeaderCol = headers.indexOf('Solution Set (L3) Leader');
+    const l4LeaderCol = headers.indexOf('Sub-function Leader');
+
+    // Determine which column to update based on data.level and data.field
+    let targetCol = -1;
+    if (data.field === 'name') {
+      if (data.level === 0) targetCol = l1Col;
+      else if (data.level === 1) targetCol = l2Col;
+      else if (data.level === 2) targetCol = l3Col;
+      else if (data.level === 3) targetCol = l4Col;
+    } else if (data.field === 'leader') {
+      if (data.level === 0) targetCol = l1LeaderCol;
+      else if (data.level === 1) targetCol = l2LeaderCol;
+      else if (data.level === 2) targetCol = l3LeaderCol;
+      else if (data.level === 3) targetCol = l4LeaderCol;
+    }
+
+    if (targetCol === -1) {
+      return createCorsResponse({ success: false, message: 'Invalid level or field' });
+    }
+
+    // Find matching rows based on the path
+    let updatedCount = 0;
+    for (let i = 1; i < values.length; i++) {
+      let matches = true;
+
+      // Check if this row matches the path
+      if (data.path && data.path.length > 0) {
+        for (let p = 0; p < data.path.length; p++) {
+          let checkCol = -1;
+          if (p === 0) checkCol = l1Col;
+          else if (p === 1) checkCol = l2Col;
+          else if (p === 2) checkCol = l3Col;
+          else if (p === 3) checkCol = l4Col;
+
+          if (checkCol !== -1 && values[i][checkCol] !== data.path[p].name) {
+            matches = false;
+            break;
+          }
+        }
+      }
+
+      // Also check if the old value matches (for name changes)
+      if (matches && data.field === 'name' && data.oldValue) {
+        if (values[i][targetCol] !== data.oldValue) {
+          matches = false;
+        }
+      }
+
+      // Update the cell if it matches
+      if (matches) {
+        sheet.getRange(i + 1, targetCol + 1).setValue(data.newValue);
+        updatedCount++;
+      }
+    }
+
+    return createCorsResponse({
+      success: true,
+      message: 'Updated ' + updatedCount + ' row(s) successfully'
+    });
+  } catch (error) {
+    Logger.log('Error in handleUpdateServiceLine: ' + error.toString());
+    return createCorsResponse({ success: false, message: 'Error updating service line: ' + error.toString() });
+  }
+}
+
 function createCorsResponse(responseData) {
   const output = ContentService
     .createTextOutput(JSON.stringify(responseData))
@@ -202,5 +289,21 @@ function testSaveMasterDescription() {
   };
 
   const result = handleSaveMasterDescription(ss, testData);
+  Logger.log(result.getContent());
+}
+
+function testUpdateServiceLine() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  // Test updating a service line name
+  const testData = {
+    level: 0,
+    field: 'name',
+    oldValue: 'Business Applications',
+    newValue: 'Business Apps (Updated)',
+    path: []
+  };
+
+  const result = handleUpdateServiceLine(ss, testData);
   Logger.log(result.getContent());
 }

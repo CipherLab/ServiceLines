@@ -271,6 +271,45 @@ export async function saveMasterDescription(pathKey, content, timestamp, message
   }
 }
 
+export async function updateServiceLine(level, field, oldValue, newValue, path) {
+  if (!APPS_SCRIPT_URL) {
+    console.error('[UpdateServiceLine] APPS_SCRIPT_URL not configured')
+    throw new Error('Apps Script URL not configured')
+  }
+
+  try {
+    console.log('[UpdateServiceLine] Updating:', { level, field, oldValue, newValue, path })
+
+    const formData = new URLSearchParams()
+    formData.append('action', 'updateServiceLine')
+    formData.append('data', JSON.stringify({
+      level,
+      field,
+      oldValue,
+      newValue,
+      path
+    }))
+
+    const response = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      body: formData,
+      redirect: 'follow'
+    })
+
+    const data = await response.json()
+    console.log('[UpdateServiceLine] Response:', data)
+
+    if (!data.success) {
+      throw new Error(data.message || 'Failed to update service line')
+    }
+
+    return data
+  } catch (error) {
+    console.error('[UpdateServiceLine] Error:', error)
+    throw new Error(`Failed to update service line: ${error.message}`)
+  }
+}
+
 export function buildTree(data) {
   const tree = []
 

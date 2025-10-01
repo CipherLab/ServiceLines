@@ -87,6 +87,7 @@
                 :data="serviceLineData"
                 :external-path="externalNavigationPath"
                 @add-service-line="handleAddServiceLine"
+                @rename-service-line="handleRenameServiceLine"
                 @path-changed="handlePathChanged"
               />
             </q-tab-panel>
@@ -193,6 +194,12 @@ async function handleAddServiceLine(newRow) {
       timeout: 5000
     })
   }
+}
+
+async function handleRenameServiceLine() {
+  // Reload data from Google Sheets to reflect the changes
+  console.log('[App] Service line renamed, reloading data...')
+  await loadData()
 }
 
 function handlePathChanged(path) {

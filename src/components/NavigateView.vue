@@ -28,7 +28,7 @@
         :class="currentLevel === 0 ? 'top-level-btn' : 'child-level-btn'"
         :style="getButtonStyle(option)"
         @click="selectOption(option)"
-        :disable="isAtMaxDepth"
+        :disable="isAtMaxDepth || editingOption === option"
         no-caps
         stack
       >
@@ -38,7 +38,55 @@
           size="32px"
           class="q-mb-sm"
         />
-        <div class="btn-label">{{ option }}</div>
+
+        <!-- Edit mode -->
+        <div v-if="editingOption === option" class="edit-container" @click.stop>
+          <q-input
+            v-model="editingName"
+            dense
+            filled
+            autofocus
+            class="edit-input"
+            @keyup.enter="saveEdit(option)"
+            @keyup.esc="cancelEdit"
+          />
+          <div class="edit-actions">
+            <q-btn
+              flat
+              dense
+              round
+              size="sm"
+              icon="check"
+              color="positive"
+              @click.stop="saveEdit(option)"
+            />
+            <q-btn
+              flat
+              dense
+              round
+              size="sm"
+              icon="close"
+              color="negative"
+              @click.stop="cancelEdit"
+            />
+          </div>
+        </div>
+
+        <!-- Normal mode -->
+        <div v-else class="btn-label-container">
+          <div class="btn-label">{{ option }}</div>
+          <q-btn
+            flat
+            dense
+            round
+            size="xs"
+            icon="edit"
+            class="edit-icon"
+            @click.stop="startEdit(option)"
+          >
+            <q-tooltip>Edit name</q-tooltip>
+          </q-btn>
+        </div>
       </q-btn>
       <q-btn
         v-if="!isAtMaxDepth"
@@ -103,6 +151,7 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { useQuasar } from 'quasar'
 import DescriptionThread from './DescriptionThread.vue'
+import { updateServiceLine } from '../services/googleSheets'
 
 const props = defineProps({
   data: {
@@ -115,7 +164,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['add-service-line', 'path-changed'])
+const emit = defineEmits(['add-service-line', 'path-changed', 'rename-service-line'])
 
 const $q = useQuasar()
 
@@ -140,6 +189,8 @@ const newServiceLine = ref({
   name: '',
   description: ''
 })
+const editingOption = ref(null)
+const editingName = ref('')
 
 // Icon mapping for top level service lines
 const iconMap = {
@@ -296,6 +347,74 @@ function navigateToLevel(index) {
   currentPath.value = currentPath.value.slice(0, index + 1)
 }
 
+function startEdit(option) {
+  editingOption.value = option
+  editingName.value = option
+}
+
+function cancelEdit() {
+  editingOption.value = null
+  editingName.value = ''
+}
+
+async function saveEdit(oldName) {
+  const newName = editingName.value.trim()
+
+  if (!newName) {
+    $q.notify({
+      type: 'warning',
+      message: 'Name cannot be empty'
+    })
+    return
+  }
+
+  if (newName === oldName) {
+    cancelEdit()
+    return
+  }
+
+  // Check for duplicates
+  if (currentOptions.value.includes(newName)) {
+    $q.notify({
+      type: 'negative',
+      message: 'A service line with this name already exists'
+    })
+    return
+  }
+
+  try {
+    // Update in Google Sheets
+    await updateServiceLine(
+      currentLevel.value,
+      'name',
+      oldName,
+      newName,
+      currentPath.value
+    )
+
+    // Emit event to parent to reload the data
+    emit('rename-service-line', {
+      level: currentLevel.value,
+      oldName,
+      newName,
+      path: currentPath.value
+    })
+
+    $q.notify({
+      type: 'positive',
+      message: 'Name updated successfully and synced to Google Sheets!'
+    })
+
+    cancelEdit()
+  } catch (error) {
+    console.error('[NavigateView] Error renaming:', error)
+    $q.notify({
+      type: 'negative',
+      message: 'Failed to update name: ' + error.message
+    })
+  }
+}
+
 async function addServiceLine() {
   if (!newServiceLine.value.name.trim()) {
     $q.notify({
@@ -424,5 +543,46 @@ onMounted(() => {
 
 .add-btn:hover {
   background: linear-gradient(135deg, #5568d3 0%, #65408b 100%) !important;
+}
+
+/* Edit mode styles */
+.btn-label-container {
+  position: relative;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.edit-icon {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  margin-top: 4px;
+}
+
+.service-btn:hover .edit-icon {
+  opacity: 0.7;
+}
+
+.edit-icon:hover {
+  opacity: 1 !important;
+}
+
+.edit-container {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+}
+
+.edit-input {
+  width: 100%;
+}
+
+.edit-actions {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
 }
 </style>
